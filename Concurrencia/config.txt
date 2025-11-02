@@ -1,0 +1,6 @@
+numeroClientes=2 
+numeroMensajesPorCliente=3 
+numeroFiltros=1 
+numeroServidores=2 
+capacidadBuzonEntrada=3
+capacidadBuzonEntrega=3
