@@ -1,3 +1,4 @@
+package Concurrencia;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,9 +12,9 @@ public class MainSimulador {
         Configuracion cfg = Configuracion.cargar(rutaConfig);
         System.out.println("Configuracion cargada: " + cfg);
 
-        Buzon entrada = new Buzon(cfg.capacidadBuzonEntrada);
-        Buzon cuarentena = new Buzon(0);
-        Buzon entrega = new Buzon(cfg.capacidadBuzonEntrega);
+        BuzonEntrada entrada = new BuzonEntrada(cfg.capacidadBuzonEntrada);
+        BuzonCuarentena cuarentena = new BuzonCuarentena();
+        BuzonEntrega entrega = new BuzonEntrega(cfg.capacidadBuzonEntrega);
 
         List<Thread> hilos = new ArrayList<>();
 
@@ -24,7 +25,7 @@ public class MainSimulador {
 
         // Filtros
         for (int i = 1; i <= cfg.numeroFiltros; i++) {
-            hilos.add(new FiltroSpam(entrada, entrega, cuarentena, cfg.numeroClientes, cfg.numeroServidores));
+            hilos.add(new FiltroSpam(entrada, entrega, cuarentena, i));
         }
 
         // Manejador de cuarentena

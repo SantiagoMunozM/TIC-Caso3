@@ -1,82 +1,96 @@
-public class FiltroSpam extends Thread {
-    private final Buzon buzonEntrada;
-    private final Buzon buzonEntrega;
-    private final Buzon buzonCuarentena;
-    private final int totalClientes;
-    private final int totalServidores;
-    private static int contFinClientes = 0;
+package Concurrencia;
 
-    public FiltroSpam(Buzon entrada, Buzon entrega, Buzon cuarentena, int totalClientes, int totalServidores) {
+public class FiltroSpam extends Thread {
+    private int id;
+    private final BuzonEntrada buzonEntrada;
+    private final BuzonEntrega buzonEntrega;
+    private final BuzonCuarentena buzonCuarentena;
+    
+    private static int totalClientes = 0;
+    private static int clientesFinalizados = 0;
+
+    public FiltroSpam(BuzonEntrada entrada, BuzonEntrega entrega, BuzonCuarentena cuarentena, int id) {
         this.buzonEntrada = entrada;
         this.buzonEntrega = entrega;
         this.buzonCuarentena = cuarentena;
-        this.totalClientes = totalClientes;
-        this.totalServidores = totalServidores;
+        this.id = id;
 
+    }
+
+    public synchronized void incrementarTotalClientes() {
+        FiltroSpam.totalClientes +=1;
+    }
+
+    public synchronized boolean incrementarClientesFinalizados() {
+        clientesFinalizados += 1;
+        return clientesFinalizados == totalClientes;
     }
 
     @Override
     public void run() {
         try {
-            while (true) {
+            while (clientesFinalizados<totalClientes || totalClientes == 0) {
                 Mensaje m = buzonEntrada.extraer();
-
-                // Cuando llega un mensaje de inicio
-                if (m.tipo == TipoMensaje.INICIO) {
-                    System.out.println("Filtro detecto inicio de " + m.remitente);
-                }
-
-                // Cuando llega un mensaje de fin
-                else if (m.tipo == TipoMensaje.FIN) {
-                    boolean ultimoCliente = false;
-
-                    synchronized (FiltroSpam.class) {
-                        contFinClientes++;
-                        if (contFinClientes == totalClientes) {
-                            ultimoCliente = true; // este filtro es el último que ve el fin
-                        }
+                if (m!= null) {
+                    // Cuando llega un mensaje de inicio
+                    if (m.tipo == TipoMensaje.INICIO) {
+                        System.out.printf("Filtro %d detectó inicio de %s\n",id, m.remitente);
+                        incrementarTotalClientes();
                     }
 
-                    if (ultimoCliente) {
-                        System.out.println("Esperando que se vacien los buzones antes del cierre...");
+                    // Cuando llega un mensaje de fin
+                    else if (m.tipo == TipoMensaje.FIN) {
+                        
+                        boolean ultimoClienteFinalizado = incrementarClientesFinalizados();
 
-                        synchronized (buzonEntrada) {
-                            buzonEntrada.esperarHastaVacio();
-                        }
-                        synchronized (buzonCuarentena) {
-                            buzonCuarentena.esperarHastaVacio();
-                        }
+                        if (ultimoClienteFinalizado) {
+                            System.out.println("Buzón de entrada vacío, enviando mensaje de fin a buzón de cuarentena");
 
-                        // Si todo esta vacio enviar los FIN
-                        for (int i = 0; i < totalServidores; i++) {
-                            buzonEntrega.depositar(
-                                new Mensaje("FIN_ENTREGA_" + i, "Sistema", TipoMensaje.FIN, false)
+                            // Si todo esta vacio enviar los FIN
+                            
+                            buzonCuarentena.depositar(
+                                new Mensaje("FIN_CUARENTENA", "Sistema", TipoMensaje.FIN, false)
                             );
+
+                            while (!buzonCuarentena.estaVacio()) {
+                                Thread.yield();
+                            }
+
+                            while (buzonEntrega.estaLleno()) {
+                                Thread.yield();
+                            }
+
+                            System.out.println("Buzón de cuarentena vacío, enviando mensaje de fin a buzón de entrega");
+
+                            buzonEntrega.depositar(
+                                new Mensaje("FIN_ENTREGA", "Sistema", TipoMensaje.FIN, false)
+                            );
+                              
                         }
 
-                        buzonCuarentena.depositar(
-                            new Mensaje("FIN_CUARENTENA", "Sistema", TipoMensaje.FIN, false)
-                        );
 
-                        System.out.println("Filtro envio FIN global");
-                        break;
                     }
 
-
-                }
-
-                // Cuando llega un correo normal
-                else {
-                    if (m.esSpam) {
-                        buzonCuarentena.depositar(m);
-                        System.out.println("Filtro envio mensaje a cuarentena: " + m.id);
-                    } else {
-                        buzonEntrega.depositar(m);
-                        System.out.println("Filtro aprobo mensaje valido: " + m.id);
+                    // Cuando llega un correo normal
+                    else {
+                        if (m.esSpam) {
+                            buzonCuarentena.depositar(m);
+                            System.out.printf("Filtro %d envió mensaje a cuarentena: %s\n", id, m.id);
+                        } else {
+                            while (buzonEntrega.estaLleno()) {
+                                Thread.yield();
+                            }
+                            buzonEntrega.depositar(m);
+                            System.out.printf("Filtro %d aprobó mensaje valido: %s\n",id, m.id);
+                        }
                     }
                 }
             }
-        } catch (InterruptedException e) {
+            System.out.printf("Filtro %d terminó ejecución\n", id);
+
+
+        } 
+        catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }

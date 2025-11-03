@@ -1,8 +1,11 @@
+package Concurrencia;
 public class ServidorEntrega extends Thread {
     private final String nombre;
-    private final Buzon buzonEntrega;
+    private final BuzonEntrega buzonEntrega;
 
-    public ServidorEntrega(String nombre, Buzon entrega) {
+    private static boolean finalizado = false;
+
+    public ServidorEntrega(String nombre, BuzonEntrega entrega) {
         this.nombre = nombre;
         this.buzonEntrega = entrega;
     }
@@ -10,17 +13,27 @@ public class ServidorEntrega extends Thread {
     @Override
     public void run() {
         try {
-            while (true) {
+            while (!finalizado) {
+                //espera activa
+                while (buzonEntrega.estaVacio() && !finalizado) {
+
+                }
                 Mensaje m = buzonEntrega.extraer();
 
-                if (m.tipo == TipoMensaje.FIN) {
-                    System.out.println(nombre + " recibio FIN. Finaliza.");
-                    break;
-                }
+                if (m != null) {
+                    if (m.tipo == TipoMensaje.FIN) {
+                        System.out.println(nombre + " recibió mensaje FIN. Finaliza y avisa a los demás servidores.");
+                        ServidorEntrega.finalizado = true;
+                    }
 
-                System.out.println(nombre + " procesando " + m.id);
-                Thread.sleep((int) (Math.random() * 1000 + 500)); // espera activa
+                    else {
+                        System.out.println(nombre + " procesando " + m.id);
+                        Thread.sleep((int) (Math.random() * 1000 + 500)); 
+
+                    }
+                }
             }
+            System.out.println(nombre + " finalizado.");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
